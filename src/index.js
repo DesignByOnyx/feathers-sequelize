@@ -112,9 +112,9 @@ class Service {
     let promise;
 
     if (isArray) {
-      promise = this.Model.bulkCreate(data, createOptions);
+      promise = this.Model.bulkCreate(data.map(utils.serialize), createOptions);
     } else {
-      promise = this.Model.create(data, createOptions);
+      promise = this.Model.create(utils.serialize(data), createOptions);
     }
 
     return promise.then(result => {

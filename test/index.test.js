@@ -151,6 +151,23 @@ describe('Feathers Sequelize Service', () => {
     // common ORM tests
     orm(rawPeople, errors);
 
+    describe('Model Instance data', () => {
+      let instance;
+      beforeEach(() => {
+        instance = Model.build({ name: 'David' });
+      });
+
+      it('does not fail with create()', () => {
+        console.log(instance.toJSON(), instance.name);
+        rawPeople.create(instance).then(result => {
+          console.log('HERE');
+        })
+        .catch(err => {
+          console.log('Error', err);
+        });
+      });
+    });
+
     describe('Non-raw Service Config', () => {
       app.use('/people', service({
         Model,

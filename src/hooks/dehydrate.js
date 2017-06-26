@@ -1,9 +1,4 @@
-const serialize = (item) => {
-  if (typeof item.toJSON === 'function') {
-    return item.toJSON();
-  }
-  return item;
-};
+import { serialize } from '../utils';
 
 export default () => {
   return function (hook) {

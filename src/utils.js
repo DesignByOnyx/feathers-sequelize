@@ -62,3 +62,19 @@ export function getWhere (query) {
 
   return where;
 }
+
+export function hydrateFactory (Model, include = null) {
+  return item => {
+    if (!(item instanceof Model.Instance)) {
+      return Model.build(item, { isNewRecord: false, include });
+    }
+    return item;
+  };
+}
+
+export function serialize (item) {
+  if (typeof item.toJSON === 'function') {
+    return item.toJSON();
+  }
+  return item;
+}
