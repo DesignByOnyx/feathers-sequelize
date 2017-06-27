@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-expressions */
 import assert from 'assert';
 import { expect } from 'chai';
 import { base, example, orm } from 'feathers-service-tests';
@@ -150,6 +151,45 @@ describe('Feathers Sequelize Service', () => {
 
     // common ORM tests
     orm(rawPeople, errors);
+
+    // Test situations where data was instantiated/hydrated in a before hook.
+    // The adapter should return the same exact instance(s).
+    const doInstanceTests = (raw, bulk) => {
+      describe(`Using instantiated data objects with raw: ${raw}, bulk: ${bulk}`, () => {
+        let instances, results;
+        function testResult () {
+          if (raw) {
+            Object.getPrototypeOf(results[0]) === Object.prototype;
+          } else {
+            assert.equal(results[0], instances[0]);
+          }
+        }
+
+        beforeEach(() => {
+          instances = [ Model.build({ name: 'David' }) ];
+          return rawPeople.create(bulk ? instances : instances[0], {sequelize: { raw }}).then(objs => {
+            results = bulk ? objs : [objs];
+          });
+        });
+
+        it('create() works', () => {
+          testResult();
+        });
+
+        ['update', 'patch'].forEach(method => {
+          it(`does not fail with ${method}()`, () =>
+            rawPeople[method](results[0].id, {name: 'Sarah'}).then(result => {
+              testResult();
+              assert.equal(result.name, 'Sarah');
+            })
+          );
+        });
+      });
+    };
+    doInstanceTests(true, false);
+    doInstanceTests(false, false);
+    doInstanceTests(true, true);
+    doInstanceTests(false, true);
 
     describe('Non-raw Service Config', () => {
       app.use('/people', service({

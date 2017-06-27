@@ -106,26 +106,46 @@ class Service {
     // In order to use `raw` consistently to serialize the result,
     // we need to shadow the Model.create use of raw, which we provide
     // access to by specifying `ignoreSetters`.
-    const ignoreSetters = Boolean(options.ignoreSetters);
-    const createOptions = Object.assign({}, options, {raw: ignoreSetters});
-    const isArray = Array.isArray(data);
-    let promise;
 
-    if (isArray) {
-      promise = this.Model.bulkCreate(data, createOptions);
-    } else {
-      promise = this.Model.create(data, createOptions);
+    const ignoreSetters = Boolean(options.ignoreSetters);
+    const createOptions = Object.assign({}, options, { raw: ignoreSetters });
+    const isBulk = Array.isArray(data);
+    const promises = [];
+    const bulkItems = [];
+
+    if (!isBulk) {
+      data = [data];
     }
 
-    return promise.then(result => {
-      const sel = select(params, this.id);
+    data.forEach(item => {
+      if (item instanceof this.Model.Instance) {
+        promises.push(item.save());
+      } else if (isBulk) {
+        bulkItems.push(item);
+      } else {
+        promises.push(this.Model.create(item, createOptions));
+      }
+    });
+    if (bulkItems.length) {
+      promises.push(this.Model.bulkCreate(bulkItems, createOptions));
+    }
+
+    return Promise.all(promises).then(results => {
+      // flatten the results if bulkCreate was used
+      if (bulkItems.length) {
+        results = results.reduce((arr, item) => {
+          Array.isArray(item) ? arr.push.apply(arr, item) : arr.push(item);
+          return arr;
+        }, []);
+      }
       if (options.raw === false) {
-        return result;
+        return isBulk ? results : results[0];
       }
-      if (isArray) {
-        return result.map(item => sel(item.toJSON()));
+      const sel = select(params, this.id);
+      if (isBulk) {
+        return results.map(item => sel(item.toJSON()));
       }
-      return sel(result.toJSON());
+      return sel(results[0].toJSON());
     }).catch(utils.errorHandler);
   }
 

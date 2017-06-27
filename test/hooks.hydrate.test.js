@@ -7,6 +7,7 @@ const sequelize = new Sequelize('sequelize', '', '', {
   storage: './db.sqlite',
   logging: false
 });
+
 const BlogPost = sequelize.define('blogpost', {
   title: {
     type: Sequelize.STRING,
@@ -26,7 +27,15 @@ const Comment = sequelize.define('comment', {
 BlogPost.hasMany(Comment);
 Comment.belongsTo(BlogPost);
 
-const callHook = (Model, method, result, options) => {
+const callBeforeHook = (Model, method, data, options) => {
+  return hydrate(options).call({ Model }, {
+    type: 'before',
+    method,
+    data
+  });
+};
+
+const callAfterHook = (Model, method, result, options) => {
   return hydrate(options).call({ Model }, {
     type: 'after',
     method,
@@ -39,49 +48,8 @@ describe('Feathers Sequelize Hydrate Hook', () => {
     sequelize.sync()
   );
 
-  it('throws if used as a "before" hook', () => {
-    const hook = hydrate().bind(null, { type: 'before' });
-    expect(hook).to.throw(Error);
-  });
-
-  it('hydrates results for find()', () => {
-    return callHook(BlogPost, 'find', [{title: 'David'}]).then(hook =>
-      expect(hook.result[0] instanceof BlogPost.Instance).to.be.ok
-    );
-  });
-
-  it('hydrates results for paginated find()', () => {
-    return callHook(BlogPost, 'find', {
-      data: [{title: 'David'}]
-    }).then(hook =>
-      expect(hook.result.data[0] instanceof BlogPost.Instance).to.be.ok
-    );
-  });
-
-  it('hydrates results for get()', () => {
-    return callHook(BlogPost, 'get', {title: 'David'}).then(hook =>
-      expect(hook.result instanceof BlogPost.Instance).to.be.ok
-    );
-  });
-
-  ['create', 'update', 'patch'].forEach(method => {
-    it(`hydrates results for single ${method}()`, () => {
-      return callHook(BlogPost, method, {title: 'David'}).then(hook =>
-        expect(hook.result instanceof BlogPost.Instance).to.be.ok
-      );
-    });
-  });
-
-  ['create', 'patch'].forEach(method => {
-    it(`hydrates results for bulk ${method}()`, () => {
-      return callHook(BlogPost, method, [{title: 'David'}]).then(hook =>
-        expect(hook.result[0] instanceof BlogPost.Instance).to.be.ok
-      );
-    });
-  });
-
   it('hydrates included (associated) models', () => {
-    return callHook(BlogPost, 'get', {
+    return callAfterHook(BlogPost, 'get', {
       title: 'David',
       comments: [{ text: 'Comment text' }]
     }, {
@@ -93,8 +61,79 @@ describe('Feathers Sequelize Hydrate Hook', () => {
 
   it('does not hydrate if data is a Model instance', () => {
     const instance = BlogPost.build({ title: 'David' });
-    return callHook(BlogPost, 'get', instance).then(hook =>
+    return callAfterHook(BlogPost, 'get', instance).then(hook =>
       expect(hook.result).to.equal(instance)
     );
+  });
+
+  describe('Used as a "before" hook', () => {
+    it('throws if used on get()', () => {
+      const hook = hydrate().bind(null, { method: 'get', type: 'before' });
+      expect(hook).to.throw(Error);
+    });
+
+    it('throws if used on find()', () => {
+      const hook = hydrate().bind(null, { method: 'find', type: 'before' });
+      expect(hook).to.throw(Error);
+    });
+
+    it('throws if used on remove()', () => {
+      const hook = hydrate().bind(null, { method: 'remove', type: 'before' });
+      expect(hook).to.throw(Error);
+    });
+
+    ['create', 'update', 'patch'].forEach(method => {
+      it(`hydrates data for single ${method}()`, () => {
+        return callBeforeHook(BlogPost, method, {title: 'David'}).then(hook =>
+          expect(hook.data instanceof BlogPost.Instance).to.be.ok
+        );
+      });
+    });
+
+    ['create', 'patch'].forEach(method => {
+      it(`hydrates data for bulk ${method}()`, () => {
+        return callBeforeHook(BlogPost, method, [{title: 'David'}]).then(hook =>
+          expect(hook.data[0] instanceof BlogPost.Instance).to.be.ok
+        );
+      });
+    });
+  });
+
+  describe('Used as an "after" hook', () => {
+    it('hydrates results for find()', () => {
+      return callAfterHook(BlogPost, 'find', [{title: 'David'}]).then(hook =>
+        expect(hook.result[0] instanceof BlogPost.Instance).to.be.ok
+      );
+    });
+
+    it('hydrates results for paginated find()', () => {
+      return callAfterHook(BlogPost, 'find', {
+        data: [{title: 'David'}]
+      }).then(hook =>
+        expect(hook.result.data[0] instanceof BlogPost.Instance).to.be.ok
+      );
+    });
+
+    it('hydrates results for get()', () => {
+      return callAfterHook(BlogPost, 'get', {title: 'David'}).then(hook =>
+        expect(hook.result instanceof BlogPost.Instance).to.be.ok
+      );
+    });
+
+    ['create', 'update', 'patch', 'remove'].forEach(method => {
+      it(`hydrates results for single ${method}()`, () => {
+        return callAfterHook(BlogPost, method, {title: 'David'}).then(hook =>
+          expect(hook.result instanceof BlogPost.Instance).to.be.ok
+        );
+      });
+    });
+
+    ['create', 'patch'].forEach(method => {
+      it(`hydrates results for bulk ${method}()`, () => {
+        return callAfterHook(BlogPost, method, [{title: 'David'}]).then(hook =>
+          expect(hook.result[0] instanceof BlogPost.Instance).to.be.ok
+        );
+      });
+    });
   });
 });
